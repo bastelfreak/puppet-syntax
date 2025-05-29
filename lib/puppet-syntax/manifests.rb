@@ -62,6 +62,7 @@ module PuppetSyntax
 
     def validate_manifest(file)
       Puppet[:tasks] = true if %r{.*plans/.*\.pp$}.match?(file)
+      Puppet[:render_as] = 'json'
       Puppet::Face[:parser, :current].validate(file)
     end
   end
