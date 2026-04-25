@@ -23,12 +23,11 @@ module PuppetSyntax
     end
 
     def check_hiera_data(_key, value)
-      # using filter_map to remove nil values
-      # there will be nil values if check_broken_function_call didn't return a string
-      # this is a shorthand for filter.compact
-      # https://blog.saeloun.com/2019/05/25/ruby-2-7-enumerable-filter-map/
-      keys_and_values(value).filter_map do |element|
-        check_broken_function_call(element)
+      keys_and_values(value).flat_map do |element|
+        [
+          check_broken_function_call(element),
+          check_unterminated_interpolation(element),
+        ].compact
       end
     end
 
@@ -138,6 +137,22 @@ module PuppetSyntax
     # "%{lookup('this_is_ok')}:3306"
     def check_broken_function_call(element)
       'string after a function call but before `}` in the value' if element.is_a?(String) && /%{[^}]+\('[^}]*'\)[^}\s]+}/.match?(element)
+    end
+
+    # Hiera interpolation tokens must be closed with `}`.
+    # For example, "%{lookup('foo')" is broken; the correct form is
+    # "%{lookup('foo')}".
+    def check_unterminated_interpolation(element)
+      return unless element.is_a?(String)
+
+      pos = 0
+      while (open_pos = element.index('%{', pos))
+        close_pos = element.index('}', open_pos + 2)
+        return 'has an unterminated interpolation token missing closing `}`' if close_pos.nil?
+
+        pos = close_pos + 1
+      end
+      nil
     end
 
     # gets a hash or array, returns all keys + values as array
